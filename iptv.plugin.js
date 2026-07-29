@@ -25,6 +25,162 @@
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
   }
 
+  var PUBLIC_PLAYLISTS = [
+    {
+      name: 'iptv-org — All channels',
+      desc: '~8000+ открытых каналов со всего мира',
+      url: 'https://iptv-org.github.io/iptv/index.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Categorized',
+      desc: 'То же, но с группировкой по категориям',
+      url: 'https://iptv-org.github.io/iptv/index.category.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Russia',
+      desc: 'Российские каналы',
+      url: 'https://iptv-org.github.io/iptv/countries/ru.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Ukraine',
+      desc: 'Украинские каналы',
+      url: 'https://iptv-org.github.io/iptv/countries/ua.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — USA',
+      desc: 'Американские каналы',
+      url: 'https://iptv-org.github.io/iptv/countries/us.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — UK',
+      desc: 'Британские каналы',
+      url: 'https://iptv-org.github.io/iptv/countries/gb.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Germany',
+      desc: 'Немецкие каналы',
+      url: 'https://iptv-org.github.io/iptv/countries/de.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — News',
+      desc: 'Новостные каналы',
+      url: 'https://iptv-org.github.io/iptv/categories/news.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Sports',
+      desc: 'Спортивные каналы',
+      url: 'https://iptv-org.github.io/iptv/categories/sports.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Entertainment',
+      desc: 'Развлекательные каналы',
+      url: 'https://iptv-org.github.io/iptv/categories/entertainment.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Music',
+      desc: 'Музыкальные каналы',
+      url: 'https://iptv-org.github.io/iptv/categories/music.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Movies',
+      desc: 'Кино и сериалы',
+      url: 'https://iptv-org.github.io/iptv/categories/movies.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    },
+    {
+      name: 'iptv-org — Kids',
+      desc: 'Детские каналы',
+      url: 'https://iptv-org.github.io/iptv/categories/kids.m3u',
+      epg: 'https://iptv-org.github.io/epg/iptv-org.xml'
+    }
+  ]
+
+  function addPlaylistUrl(url, name, epgUrl, callback) {
+    if (!name) name = url.split('/').pop().replace(/\.(m3u8?|txt)$/i, '') || 'Playlist'
+    Lampa.Noty.show('Loading ' + name + '...')
+    var xhr = new XMLHttpRequest()
+    xhr.open('GET', url, true)
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        var channels = parseM3U(xhr.responseText)
+        var data = loadData()
+        data.playlists.push({
+          id: uid(),
+          name: name,
+          url: url,
+          channels: channels.length
+        })
+        if (epgUrl && !data.epg_url) {
+          data.epg_url = epgUrl
+        }
+        saveData(data)
+        Lampa.Noty.show('Loaded ' + channels.length + ' channels from ' + name)
+        if (callback) callback()
+      } else {
+        Lampa.Noty.show('Failed to load ' + name + ' (HTTP ' + xhr.status + ')')
+        if (callback) callback()
+      }
+    }
+    xhr.onerror = function () {
+      Lampa.Noty.show('Network error loading ' + name)
+      if (callback) callback()
+    }
+    xhr.send()
+  }
+
+  function openPublicBrowser(component) {
+    var html = '<div class="iptv-modal">\
+<div class="iptv-modal-inner">\
+<h2>🌐 Public playlists</h2>\
+<p style="color:#888;font-size:13px;margin:0 0 12px">Открытые плейлисты из проекта iptv-org. Нажмите "Add" для загрузки.</p>\
+<div class="iptv-public-list">'
+
+    for (var i = 0; i < PUBLIC_PLAYLISTS.length; i++) {
+      var p = PUBLIC_PLAYLISTS[i]
+      html += '<div class="iptv-public-item">\
+<div class="iptv-public-info">\
+<div class="iptv-public-name">' + p.name + '</div>\
+<div class="iptv-public-desc">' + p.desc + '</div>\
+</div>\
+<button class="iptv-btn iptv-public-add" data-idx="' + i + '">Add</button>\
+</div>'
+    }
+
+    html += '</div>\
+<div class="iptv-btns">\
+<button class="iptv-btn iptv-close-public">Close</button>\
+</div>\
+</div></div>'
+
+    var modal = $(html)
+    $('body').append(modal)
+
+    modal.find('.iptv-public-add').on('click', function () {
+      var idx = parseInt($(this).attr('data-idx'))
+      var src = PUBLIC_PLAYLISTS[idx]
+      $(this).html('⏳').addClass('active')
+      addPlaylistUrl(src.url, src.name, src.epg, function () {
+        modal.remove()
+        if (component) component.start()
+      })
+    })
+
+    modal.find('.iptv-close-public').on('click', function () {
+      modal.remove()
+    })
+  }
+
   function parseM3U(content) {
     var channels = []
     var lines = content.split('\n')
@@ -286,7 +442,19 @@
 }\
 .iptv-epg-desc {\
   font-size: 11px; color: #666; margin-top: 2px;\
-}'
+}\
+.iptv-public-list {\
+  max-height: 400px; overflow-y: auto;\
+}\
+.iptv-public-item {\
+  display: flex; align-items: center; gap: 12px;\
+  padding: 10px 0; border-bottom: 1px solid #2a2a2a;\
+}\
+.iptv-public-info { flex: 1; }\
+.iptv-public-name { font-size: 14px; font-weight: 500; }\
+.iptv-public-desc { font-size: 11px; color: #666; margin-top: 2px; }\
+.iptv-public-add { flex-shrink: 0; }\
+.iptv-public-add.active { background: #1a5a2a; }'
 
   function openSettings(component) {
     var data = loadData()
@@ -296,6 +464,7 @@
 <label>Playlist URL (M3U / M3U8)</label>\
 <input class="iptv-input-url" type="text" placeholder="https://example.com/playlist.m3u" />\
 <div class="iptv-btns"><button class="iptv-btn iptv-add-url">Add URL</button></div>\
+<div class="iptv-btns" style="margin-top:16px"><button class="iptv-btn iptv-open-public" style="flex:1;background:#1a5a2a">🌐 Public playlists</button></div>\
 <label>Or paste M3U content</label>\
 <textarea class="iptv-input-content" placeholder="Paste M3U playlist content here..."></textarea>\
 <div class="iptv-btns"><button class="iptv-btn iptv-add-content">Add from text</button></div>\
@@ -324,10 +493,15 @@
     modal.find('.iptv-add-url').on('click', function () {
       var val = modal.find('.iptv-input-url').val().trim()
       if (!val) return
-      addPlaylistUrl(val, function () {
+      addPlaylistUrl(val, null, null, function () {
         modal.remove()
         if (component) component.start()
       })
+    })
+
+    modal.find('.iptv-open-public').on('click', function () {
+      modal.remove()
+      openPublicBrowser(component)
     })
 
     modal.find('.iptv-add-content').on('click', function () {
@@ -362,33 +536,6 @@
       modal.remove()
       if (component) component.start()
     })
-  }
-
-  function addPlaylistUrl(url, callback) {
-    Lampa.Noty.show('Loading playlist...')
-    var xhr = new XMLHttpRequest()
-    xhr.open('GET', url, true)
-    xhr.onload = function () {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        var channels = parseM3U(xhr.responseText)
-        var data = loadData()
-        data.playlists.push({
-          id: uid(),
-          name: url.split('/').pop().replace(/\.(m3u8?|txt)$/i, '') || 'Playlist',
-          url: url,
-          channels: channels.length
-        })
-        saveData(data)
-        Lampa.Noty.show('Loaded ' + channels.length + ' channels')
-        if (callback) callback()
-      } else {
-        Lampa.Noty.show('Failed to load playlist (HTTP ' + xhr.status + ')')
-      }
-    }
-    xhr.onerror = function () {
-      Lampa.Noty.show('Network error loading playlist')
-    }
-    xhr.send()
   }
 
   function addPlaylistContent(content, callback) {
@@ -488,12 +635,17 @@
         '<div class="iptv-main">' +
         '<div class="iptv-topbar">' +
         '<div class="iptv-title">📺 IPTV</div>' +
+        '<button class="iptv-btn iptv-btn-public">🌐 Public</button>' +
         '<button class="iptv-btn iptv-btn-settings">⚙️ Settings</button>' +
         '</div>' +
         '<div class="iptv-bar iptv-cat-bar"></div>' +
         '<div class="iptv-grid"></div>' +
         '</div>'
       )
+
+      container.find('.iptv-btn-public').on('click', function () {
+        openPublicBrowser(self)
+      })
 
       container.find('.iptv-btn-settings').on('click', function () {
         openSettings(self)
@@ -511,9 +663,13 @@
         grid.html(
           '<div class="iptv-empty">' +
           '<span>No playlists added yet</span>' +
-          '<button class="iptv-btn iptv-btn-settings-start">⚙️ Add playlist</button>' +
+          '<button class="iptv-btn iptv-btn-start-public" style="background:#1a5a2a">🌐 Browse public playlists</button>' +
+          '<button class="iptv-btn iptv-btn-settings-start">⚙️ Add custom URL</button>' +
           '</div>'
         )
+        grid.find('.iptv-btn-start-public').on('click', function () {
+          openPublicBrowser(self)
+        })
         grid.find('.iptv-btn-settings-start').on('click', function () {
           openSettings(self)
         })
@@ -528,9 +684,13 @@
           grid.html(
             '<div class="iptv-empty">' +
             '<span>No channels found in playlists</span>' +
+            '<button class="iptv-btn iptv-btn-start-public" style="background:#1a5a2a">🌐 Browse public playlists</button>' +
             '<button class="iptv-btn iptv-btn-settings-start">⚙️ Settings</button>' +
             '</div>'
           )
+          grid.find('.iptv-btn-start-public').on('click', function () {
+            openPublicBrowser(self)
+          })
           grid.find('.iptv-btn-settings-start').on('click', function () {
             openSettings(self)
           })
