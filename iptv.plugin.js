@@ -835,13 +835,36 @@
 
     Lampa.Component.add('iptv', IPTVComponent)
 
-    Lampa.Menu.add('📺 IPTV', function () {
+    function openIPTV() {
       Lampa.Activity.push({
         url: '',
         title: 'IPTV',
         component: 'iptv'
       })
-    })
+    }
+
+    var menuAdded = false
+    var menuEntry = { title: '📺 IPTV', component: 'iptv', url: '' }
+
+    if (!menuAdded && Lampa.Sidebar && typeof Lampa.Sidebar.add === 'function') {
+      try { Lampa.Sidebar.add(menuEntry); menuAdded = true } catch (e) {}
+    }
+
+    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.add === 'function') {
+      try { Lampa.Menu.add(menuEntry); menuAdded = true } catch (e) {}
+    }
+
+    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.add === 'function') {
+      try { Lampa.Menu.add('📺 IPTV', openIPTV); menuAdded = true } catch (e) {}
+    }
+
+    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.item === 'function') {
+      try { Lampa.Menu.item(menuEntry); menuAdded = true } catch (e) {}
+    }
+
+    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.push === 'function') {
+      try { Lampa.Menu.push(menuEntry); menuAdded = true } catch (e) {}
+    }
 
     Lampa.Lang.add({
       iptv_title: 'IPTV',
