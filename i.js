@@ -2,6 +2,18 @@
   if (window.plugin_iptv_loaded) return
   window.plugin_iptv_loaded = true
 
+  if (!String.prototype.padStart) {
+    String.prototype.padStart = function (len, fill) {
+      var s = String(this)
+      while (s.length < len) s = fill + s
+      return s
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+
   var STORAGE_KEY = 'plugin_iptv_data'
 
   function defaults() {
@@ -477,7 +489,7 @@
     for (var i = 0; i < data.playlists.length; i++) {
       var p = data.playlists[i]
       html += '<div class="iptv-playlist-item">\
-<span class="name">' + (p.name || 'Unnamed') + ' <span style="color:#666;font-size:11px">(' + (p.channels || 0) + ' channels)</span></span>\
+<span class="name">' + esc(p.name || 'Unnamed') + ' <span style="color:#666;font-size:11px">(' + (p.channels || 0) + ' channels)</span></span>\
 <button class="del" data-idx="' + i + '">✕</button></div>'
     }
 
@@ -713,7 +725,7 @@
       bar.html('')
       for (var i = 0; i < cats.length; i++) {
         (function (cat) {
-          var btn = $('<span class="iptv-cat' + (cat === currentCat ? ' sel' : '') + '">' + cat + '</span>')
+          var btn = $('<span class="iptv-cat' + (cat === currentCat ? ' sel' : '') + '">' + esc(cat) + '</span>')
           btn.on('click', function () {
             currentCat = cat
             bar.find('.iptv-cat').removeClass('sel')
@@ -747,10 +759,10 @@
           var card = $(
             '<div class="iptv-card" tabindex="0">' +
             '<div class="iptv-card-logo">' +
-            (ch.logo ? '<img src="' + ch.logo + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') +
+            (ch.logo ? '<img src="' + esc(ch.logo) + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') +
             '</div>' +
-            (now ? '<div class="iptv-card-now">' + now.title + '</div>' : '') +
-            '<div class="iptv-card-name">' + ch.name + '</div>' +
+            (now ? '<div class="iptv-card-now">' + esc(now.title) + '</div>' : '') +
+            '<div class="iptv-card-name">' + esc(ch.name) + '</div>' +
             '<div class="iptv-card-fav' + (isFav ? ' on' : '') + '">' + (isFav ? '★' : '☆') + '</div>' +
             '</div>'
           )
@@ -775,7 +787,6 @@
     }
 
     function playChannel(ch, idx) {
-      var favs = data.favorites || []
       var allForNav = allChannels
 
       var playlist = []
