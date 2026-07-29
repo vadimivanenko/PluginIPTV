@@ -829,48 +829,107 @@
   }
 
   function startPlugin() {
-    var styleEl = document.createElement('style')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
+    try {
+      var styleEl = document.createElement('style')
+      styleEl.textContent = CSS
+      document.head.appendChild(styleEl)
+    } catch (e) {}
 
-    Lampa.Component.add('iptv', IPTVComponent)
+    try { Lampa.Component.add('iptv', IPTVComponent) } catch (e) {}
 
     function openIPTV() {
-      Lampa.Activity.push({
-        url: '',
-        title: 'IPTV',
-        component: 'iptv'
+      try {
+        Lampa.Activity.push({ url: '', title: 'IPTV', component: 'iptv' })
+      } catch (e) {}
+    }
+
+    function tryRegisterMenu() {
+      var apis = [
+        function () {
+          if (Lampa.Activity && typeof Lampa.Activity.add === 'function') {
+            Lampa.Activity.add({ component: 'iptv', title: 'IPTV', menu: true })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Plugins && typeof Lampa.Plugins.add === 'function') {
+            Lampa.Plugins.add({ title: '📺 IPTV', component: 'iptv', url: '' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Plugins && typeof Lampa.Plugins.install === 'function') {
+            Lampa.Plugins.install({ title: '📺 IPTV', component: 'iptv', url: '', icon: 'tv' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Sidebar && typeof Lampa.Sidebar.add === 'function') {
+            Lampa.Sidebar.add({ title: '📺 IPTV', component: 'iptv', url: '' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Menu && typeof Lampa.Menu.add === 'function') {
+            Lampa.Menu.add({ title: '📺 IPTV', component: 'iptv', url: '' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Menu && typeof Lampa.Menu.add === 'function') {
+            Lampa.Menu.add('📺 IPTV', openIPTV)
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Menu && typeof Lampa.Menu.item === 'function') {
+            Lampa.Menu.item({ title: '📺 IPTV', component: 'iptv', url: '' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Menu && typeof Lampa.Menu.push === 'function') {
+            Lampa.Menu.push({ title: '📺 IPTV', component: 'iptv', url: '' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Navigator && typeof Lampa.Navigator.add === 'function') {
+            Lampa.Navigator.add({ title: '📺 IPTV', component: 'iptv' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Bookmark && typeof Lampa.Bookmark.add === 'function') {
+            Lampa.Bookmark.add({ title: '📺 IPTV', url: '', component: 'iptv' })
+            return true
+          }
+        },
+        function () {
+          if (Lampa.Extension && typeof Lampa.Extension.add === 'function') {
+            Lampa.Extension.add({ name: 'iptv', title: '📺 IPTV', component: 'iptv' })
+            return true
+          }
+        }
+      ]
+
+      for (var i = 0; i < apis.length; i++) {
+        try {
+          if (apis[i]()) return true
+        } catch (e) {}
+      }
+      return false
+    }
+
+    if (!tryRegisterMenu()) {
+      Lampa.Listener.follow('full', function (event) {
+        if (event.type === 'complite') {
+          tryRegisterMenu()
+        }
       })
     }
 
-    var menuAdded = false
-    var menuEntry = { title: '📺 IPTV', component: 'iptv', url: '' }
-
-    if (!menuAdded && Lampa.Sidebar && typeof Lampa.Sidebar.add === 'function') {
-      try { Lampa.Sidebar.add(menuEntry); menuAdded = true } catch (e) {}
-    }
-
-    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.add === 'function') {
-      try { Lampa.Menu.add(menuEntry); menuAdded = true } catch (e) {}
-    }
-
-    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.add === 'function') {
-      try { Lampa.Menu.add('📺 IPTV', openIPTV); menuAdded = true } catch (e) {}
-    }
-
-    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.item === 'function') {
-      try { Lampa.Menu.item(menuEntry); menuAdded = true } catch (e) {}
-    }
-
-    if (!menuAdded && Lampa.Menu && typeof Lampa.Menu.push === 'function') {
-      try { Lampa.Menu.push(menuEntry); menuAdded = true } catch (e) {}
-    }
-
-    Lampa.Lang.add({
-      iptv_title: 'IPTV',
-      iptv_settings: 'Settings',
-      iptv_fav: 'Favorites'
-    })
+    try { Lampa.Lang.add({ iptv_title: 'IPTV', iptv_settings: 'Settings', iptv_fav: 'Favorites' }) } catch (e) {}
   }
 
   if (window.Lampa && Lampa.Listener) {
