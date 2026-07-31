@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lampa IPTV Plugin — Test</title>
+<style>
+  body { margin: 0; background: #000; font-family: Arial, sans-serif; overflow: hidden; }
+  #test-root { width: 100vw; height: 100vh; }
+  #debug-log {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    max-height: 120px; overflow-y: auto;
+    background: rgba(0,0,0,0.9); color: #0f0;
+    font-family: monospace; font-size: 11px; padding: 8px;
+    border-top: 1px solid #333; z-index: 9999;
+  }
+  #debug-log div { padding: 2px 0; border-bottom: 1px solid #111; }
+  #debug-toggle {
+    position: fixed; bottom: 124px; right: 8px;
+    background: #222; color: #0f0; border: 1px solid #333;
+    padding: 4px 8px; cursor: pointer; font-size: 11px;
+    font-family: monospace; z-index: 10000;
+  }
+</style>
+</head>
+<body>
+<div id="test-root"></div>
+<div id="fallback" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#f00;font-size:24px;z-index:99999;display:none">FALLBACK: component not rendered</div>
+<button id="debug-toggle">Log</button>
+<div id="debug-log"></div>
+
+<script>
+function log(msg) {
+  var el = document.getElementById('debug-log');
+  var d = document.createElement('div');
+  d.textContent = new Date().toLocaleTimeString() + ' | ' + msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+document.getElementById('debug-toggle').onclick = function() {
+  var el = document.getElementById('debug-log');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+</script>
+
+<script>
+function $(selector) {
+  var els;
+  if (typeof selector === 'string' && selector.charAt(0) === '<') {
+    var t = document.createElement('div');
+    t.innerHTML = selector;
+    els = [t.firstElementChild];
+  } else if (selector instanceof HTMLElement) {
+    els = [selector];
+  } else if (selector && typeof selector.length === 'number') {
+    els = [];
+    for (var i = 0; i < selector.length; i++) els.push(selector[i]);
+  } else if (typeof selector === 'string') {
+    els = [];
+    var found = document.querySelectorAll(selector);
+    for (var i = 0; i < found.length; i++) els.push(found[i]);
+  } else {
+    els = [];
+  }
+
+  function wrap(list) {
+    var results = list || els;
+    var w = {
+      el: results[0],
+      0: results[0],
+      length: results.length,
+      find: function(s) {
+        var found = [];
+        for (var i = 0; i < results.length; i++) {
+          var sub = results[i].querySelectorAll(s);
+          for (var j = 0; j < sub.length; j++) found.push(sub[j]);
+        }
+        return $(found);
+      },
+      on: function(e, fn) {
+        for (var i = 0; i < results.length; i++) {
+          results[i].addEventListener(e, (function(el) { return function(ev) { fn.call(el, ev); }; })(results[i]));
+        }
+        return w;
+      },
+      html: function(h) {
+        if (h === undefined) return results[0] ? results[0].innerHTML : '';
+        for (var i = 0; i < results.length; i++) results[i].innerHTML = h;
+        return w;
+      },
+      text: function(t) {
+        if (t === undefined) return results[0] ? results[0].textContent : '';
+        for (var i = 0; i < results.length; i++) results[i].textContent = t;
+        return w;
+      },
+      append: function(c) {
+        for (var i = 0; i < results.length; i++) {
+          if (typeof c === 'string') results[i].insertAdjacentHTML('beforeend', c);
+          else if (c && c.el) results[i].appendChild(c.el);
+          else if (c instanceof HTMLElement) results[i].appendChild(c);
+        }
+        return w;
+      },
+      addClass: function(c) { for (var i = 0; i < results.length; i++) results[i].classList.add(c); return w; },
+      removeClass: function(c) { for (var i = 0; i < results.length; i++) results[i].classList.remove(c); return w; },
+      toggleClass: function(c) { for (var i = 0; i < results.length; i++) results[i].classList.toggle(c); return w; },
+      attr: function(n, v) {
+        if (v === undefined) return results[0] ? results[0].getAttribute(n) : null;
+        for (var i = 0; i < results.length; i++) results[i].setAttribute(n, v);
+        return w;
+      },
+      val: function(v) {
+        if (v === undefined) return results[0] ? results[0].value : '';
+        for (var i = 0; i < results.length; i++) results[i].value = v;
+        return w;
+      },
+      remove: function() { for (var i = results.length - 1; i >= 0; i--) results[i].parentNode && results[i].parentNode.removeChild(results[i]); return w; },
+      focus: function() { if (results[0]) results[0].focus(); return w; },
+      get: function(i) { return results[i] || null; },
+      each: function(fn) { for (var i = 0; i < results.length; i++) fn.call(results[i], i, results[i]); return w; }
+    };
+    return w;
+  }
+
+  return wrap();
+}
+</script>
+
+<script>
+var _stored = {};
+window.Lampa = {
+  Storage: {
+    get: function(k) { log('Storage.get: ' + k); return _stored[k] || null; },
+    set: function(k, v) { log('Storage.set: ' + k); _stored[k] = v; }
+  },
+  Component: {
+    _c: {},
+    add: function(n, c) { log('Component.add: ' + n); this._c[n] = c; }
+  },
+  Menu: {},
+  Sidebar: {},
+  Plugins: {},
+  Activity: {
+    _pushed: [],
+    push: function(o) { log('Activity.push: ' + JSON.stringify(o)); this._pushed.push(o); },
+    add: function(o) { log('Activity.add: ' + JSON.stringify(o)); }
+  },
+  Listener: {
+    _handlers: {},
+    follow: function(e, fn) { log('Listener.follow: ' + e); this._handlers[e] = fn; },
+    send: function(e, d) { log('Listener.send: ' + e); if (this._handlers[e]) this._handlers[e](d); }
+  },
+  Noty: {
+    show: function(m) { log('Noty: ' + m); }
+  },
+  Lang: {
+    add: function(o) { log('Lang.add: ' + Object.keys(o).join(', ')); }
+  },
+  Player: {
+    play: function(o) {
+      log('Player.play: ' + o.title + ' -> ' + o.url);
+      alert('PLAYING:\n\n' + o.title + '\n\nURL: ' + o.url + '\n\nPlaylist: ' + (o.playlist ? o.playlist.length + ' channels' : 'none'));
+    }
+  },
+  Account: { Permit: { child: false } },
+  Platform: { is: function() { return false; } },
+  Router: { call: function() {} },
+  Controller: {},
+  Modal: { open: function() {} },
+  Scroll: function() {},
+  SettingsApi: { addComponent: function() {} },
+  Network: {},
+  Reguest: {}
+};
+
+window.plugin_iptv_loaded = false;
+log('Lampa mock ready');
+</script>
+
+<script src="i.js" onerror="log('ERROR: failed to load i.js')"></script>
+
+<script>
+setTimeout(function() {
+  log('Plugin loaded. Triggering component...');
+  var ctor = Lampa.Component._c['iptv'];
+  if (!ctor) {
+    log('ERROR: Component "iptv" not registered!');
+    return;
+  }
+  var comp = new ctor();
+  var el = comp.create();
+  log('create() returned: type=' + typeof el + ' hasEl=' + !!(el && el.el));
+
+  var root = document.getElementById('test-root');
+  if (el && el.el) {
+    root.appendChild(el.el);
+    log('Appended. dims=' + el.el.offsetWidth + 'x' + el.el.offsetHeight);
+    log('Visible in DOM: ' + root.contains(el.el));
+  } else if (el instanceof HTMLElement) {
+    root.appendChild(el);
+    log('Appended (HTMLElement). dims=' + el.offsetWidth + 'x' + el.offsetHeight);
+  } else {
+    log('ERROR: nothing to append. el=' + el);
+  }
+
+  var styles = document.head.querySelectorAll('style');
+  log('Style tags: ' + styles.length);
+  for (var i = 0; i < styles.length; i++) {
+    log('Style[' + i + '] len=' + (styles[i].textContent || '').length);
+  }
+
+  log('Calling start()...');
+  comp.start();
+  log('Done. Grid HTML len=' + (root.querySelector('.iptv-grid') ? root.querySelector('.iptv-grid').innerHTML.length : 'N/A'));
+
+  setTimeout(function() {
+    var grid = root.querySelector('.iptv-grid');
+    if (!grid || grid.innerHTML.length < 10) {
+      document.getElementById('fallback').style.display = 'block';
+      log('FALLBACK SHOWN - grid empty');
+      log('test-root innerHTML len=' + root.innerHTML.length);
+      log('test-root children=' + root.children.length);
+      if (root.children[0]) {
+        log('child0 tag=' + root.children[0].tagName + ' class=' + root.children[0].className + ' dims=' + root.children[0].offsetWidth + 'x' + root.children[0].offsetHeight);
+        log('child0 innerHTML len=' + root.children[0].innerHTML.length);
+      }
+    }
+  }, 200);
+}, 500);
+</script>
+</body>
+</html>
