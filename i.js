@@ -14,6 +14,15 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   }
 
+  function getChannelLogo(ch) {
+    if (ch.logo && ch.logo.match(/^https?:\/\//)) return ch.logo
+    var name = encodeURIComponent((ch.tvg_name || ch.name || '').replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s+/g, '_'))
+    if (name.length > 1) return 'https://stream-icons.cloud/icons/channels/' + name + '.png'
+    name = encodeURIComponent((ch.name || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+    if (name.length > 1) return 'https://stream-icons.cloud/icons/channels/' + name + '.png'
+    return ''
+  }
+
   var STORAGE_KEY = 'plugin_iptv_data'
 
   function defaults() {
@@ -352,6 +361,11 @@
 .iptv-card:focus {\
   box-shadow: 0 0 0 2px #e50914, 0 4px 20px rgba(229, 9, 20, 0.3);\
 }\
+.iptv-card.focused {\
+  box-shadow: 0 0 0 3px #e50914, 0 4px 20px rgba(229, 9, 20, 0.4);\
+  transform: translateY(-3px);\
+  z-index: 2;\
+}\
 .iptv-card-logo {\
   width: 100%; padding-top: 56.25%; position: relative;\
   background: #111;\
@@ -648,6 +662,7 @@
         '<div class="iptv-topbar">' +
         '<div class="iptv-title">📺 IPTV</div>' +
         '<button class="iptv-btn iptv-btn-public">🌐 Public</button>' +
+        '<button class="iptv-btn iptv-btn-search">🔍 Search</button>' +
         '<button class="iptv-btn iptv-btn-settings">⚙️ Settings</button>' +
         '</div>' +
         '<div class="iptv-bar iptv-cat-bar"></div>' +
@@ -661,6 +676,125 @@
 
       container.find('.iptv-btn-settings').on('click', function () {
         openSettings(self)
+      })
+
+      container.find('.iptv-btn-search').on('click', function () {
+        if (Lampa.Keyboard && typeof Lampa.Keyboard.open === 'function') {
+          Lampa.Keyboard.open({
+            text: '',
+            placeholder: 'Search channels...',
+            onBack: function() { Lampa.Keyboard.close() },
+            callback: function(value) {
+              Lampa.Keyboard.close()
+              if (value && value.trim().length > 0) {
+                var q = value.trim().toLowerCase()
+                var results = allChannels.filter(function(c) {
+                  return (c.name && c.name.toLowerCase().indexOf(q) !== -1) ||
+                         (c.group && c.group.toLowerCase().indexOf(q) !== -1)
+                })
+                currentCat = 'Search: ' + value
+                filtered = results
+                renderCats(['All', 'Search Results'])
+                container.find('.iptv-cat-bar').find('.iptv-cat').removeClass('sel')
+                container.find('.iptv-cat-bar').find('.iptv-cat').last().addClass('sel')
+                renderGrid()
+                if (results.length === 0) {
+                  Lampa.Noty.show('No channels found for "' + value + '"')
+                } else {
+                  Lampa.Noty.show('Found ' + results.length + ' channels')
+                }
+              }
+            }
+          })
+        } else {
+          Lampa.Noty.show('Search not available')
+        }
+      })
+
+      var focusedIdx = 0
+      var focusedEl = null
+      var longPressTimer = null
+      var channelBuffer = ''
+      var channelTimer = null
+
+      function updateFocus(newIdx) {
+        var cards = container.find('.iptv-card')
+        if (cards.length === 0) return
+        if (focusedEl) focusedEl.removeClass('focused')
+        focusedIdx = Math.max(0, Math.min(newIdx, cards.length - 1))
+        focusedEl = $(cards.get(focusedIdx))
+        focusedEl.addClass('focused')
+        focusedEl.focus()
+      }
+
+      function showContextMenu(ch) {
+        if (!ch) return
+        Lampa.Select.show({
+          title: ch.name,
+          items: [
+            { title: data.favorites.indexOf(ch.id) !== -1 ? '★ Remove from Favorites' : '☆ Add to Favorites',
+              fn: function () {
+                var el = focusedEl ? focusedEl.find('.iptv-card-fav') : null
+                toggleFav(ch, el)
+                Lampa.Select.close()
+              } },
+            { title: '▶ Play',
+              fn: function () { playChannel(ch, focusedIdx); Lampa.Select.close() } },
+            { title: 'ℹ Channel Info',
+              fn: function () { Lampa.Noty.show((ch.group || 'Other') + ' | ' + (ch.tvg_id || ch.id)); Lampa.Select.close() } }
+          ]
+        })
+      }
+
+      container.on('keydown', function (e) {
+        var gridEl = container.find('.iptv-grid')[0]
+        var cols = Math.max(1, Math.floor((gridEl ? gridEl.offsetWidth : 1200) / 230))
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          updateFocus(focusedIdx - cols)
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          updateFocus(focusedIdx + cols)
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          updateFocus(focusedIdx - 1)
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          updateFocus(focusedIdx + 1)
+        } else if (e.key === 'Enter' || e.key === 'OK') {
+          longPressTimer = setTimeout(function () {
+            longPressTimer = null
+            showContextMenu(filtered[focusedIdx])
+          }, 800)
+        } else if (e.key === 'Backspace' || e.key === 'Escape' || e.key === 'Back') {
+          e.preventDefault()
+          Lampa.Activity.backward()
+        } else if (e.key && e.key.match(/^[0-9]$/) && allChannels.length > 0) {
+          if (channelBuffer.length >= 3) channelBuffer = channelBuffer.substring(1)
+          channelBuffer += e.key
+          if (channelTimer) clearTimeout(channelTimer)
+          channelTimer = setTimeout(function () {
+            var idx = parseInt(channelBuffer, 10) - 1
+            if (idx >= 0 && idx < allChannels.length) {
+              playChannel(allChannels[idx], idx)
+              Lampa.Noty.show('Channel ' + channelBuffer + ': ' + allChannels[idx].name)
+            } else if (channelBuffer.length > 0) {
+              Lampa.Noty.show('Channel ' + channelBuffer + ' not found')
+            }
+            channelBuffer = ''
+          }, 800)
+        }
+      })
+
+      container.on('keyup', function (e) {
+        if ((e.key === 'Enter' || e.key === 'OK') && longPressTimer) {
+          clearTimeout(longPressTimer)
+          longPressTimer = null
+          if (channelBuffer.length === 0 && focusedIdx >= 0 && focusedIdx < filtered.length) {
+            playChannel(filtered[focusedIdx], focusedIdx)
+          }
+        }
       })
 
       return container
@@ -759,7 +893,10 @@
           var card = $(
             '<div class="iptv-card" tabindex="0">' +
             '<div class="iptv-card-logo">' +
-            (ch.logo ? '<img src="' + esc(ch.logo) + '" loading="lazy" onerror="this.style.display=\'none\'" />' : '') +
+            (function(ch) {
+              var logo = ch.logo && ch.logo.match(/^https?:\/\//) ? ch.logo : getChannelLogo(ch)
+              return logo ? '<img src="' + esc(logo) + '" loading="lazy" onerror="this.style.display=\'none\'" />' : ''
+            })(ch) +
             '</div>' +
             (now ? '<div class="iptv-card-now">' + esc(now.title) + '</div>' : '') +
             '<div class="iptv-card-name">' + esc(ch.name) + '</div>' +
@@ -787,6 +924,13 @@
     }
 
     function playChannel(ch, idx) {
+      var history = []
+      try { history = JSON.parse(Lampa.Storage.get('plugin_iptv_history', '[]')) } catch (e) {}
+      history = history.filter(function(h) { return h.id !== ch.id })
+      history.unshift({ id: ch.id, name: ch.name, logo: ch.logo, url: ch.url, tvg_id: ch.tvg_id || ch.id, time: Date.now() })
+      if (history.length > 50) history = history.slice(0, 50)
+      Lampa.Storage.set('plugin_iptv_history', JSON.stringify(history))
+
       var allForNav = allChannels
 
       var playlist = []
@@ -848,96 +992,132 @@
 
     try { Lampa.Component.add('iptv', IPTVComponent) } catch (e) {}
 
+    try {
+      if (Lampa && Lampa.SettingsApi) {
+        Lampa.SettingsApi.addComponent({
+          component: 'iptv_settings',
+          name: 'IPTV',
+          icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>'
+        })
+        Lampa.SettingsApi.addParam('iptv_settings', {
+          name: 'iptv_epg_url',
+          type: 'input',
+          default: '',
+          value: function() {
+            var d = loadData()
+            return d.epg_url || ''
+          },
+          onChange: function(val) {
+            var d = loadData()
+            d.epg_url = val.trim()
+            saveData(d)
+            Lampa.Noty.show('EPG URL saved')
+          },
+          field: { name: 'EPG URL (XMLTV)', description: 'URL for TV guide data' }
+        })
+        Lampa.SettingsApi.addParam('iptv_settings', {
+          name: 'iptv_clear_history',
+          type: 'trigger',
+          field: { name: 'Clear Watch History', description: 'Remove all recently watched channels' },
+          onChange: function() {
+            Lampa.Storage.set('plugin_iptv_history', '[]')
+            Lampa.Noty.show('History cleared')
+          }
+        })
+        Lampa.SettingsApi.addParam('iptv_settings', {
+          name: 'iptv_about',
+          type: 'static',
+          field: { name: 'PluginIPTV', description: 'Version 1.0 | M3U + XMLTV + Public playlists' }
+        })
+      }
+    } catch (e) {}
+
+    try {
+      Lampa.ContentRows.add({
+        name: 'iptv_recent',
+        title: 'IPTV: Recent',
+        screen: ['main'],
+        index: 3,
+        call: function(params, screen) {
+          return function(call) {
+            try {
+              var history = JSON.parse(Lampa.Storage.get('plugin_iptv_history', '[]'))
+              var results = []
+              for (var i = history.length - 1; i >= 0; i--) {
+                var h = history[i]
+                if (h && h.id) results.push({
+                  id: h.id,
+                  title: h.name || 'Unknown',
+                  logo: h.logo || '',
+                  url: h.url || '',
+                  tvg_id: h.tvg_id || h.id
+                })
+                if (results.length >= 10) break
+              }
+              call({ results: results, title: 'IPTV: Recent' })
+            } catch(e) {
+              call({ results: [], title: 'IPTV: Recent' })
+            }
+          }
+        }
+      })
+    } catch (e) {}
+
     function openIPTV() {
       try {
-        Lampa.Activity.push({ url: '', title: 'IPTV', component: 'iptv' })
+        Lampa.Activity.push({ url: '', title: 'IPTV', component: 'iptv', page: 1 })
       } catch (e) {}
     }
 
-    function tryRegisterMenu() {
-      var apis = [
-        function () {
-          if (Lampa.Activity && typeof Lampa.Activity.add === 'function') {
-            Lampa.Activity.add({ component: 'iptv', title: 'IPTV', menu: true })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Plugins && typeof Lampa.Plugins.add === 'function') {
-            Lampa.Plugins.add({ title: '📺 IPTV', component: 'iptv', url: '' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Plugins && typeof Lampa.Plugins.install === 'function') {
-            Lampa.Plugins.install({ title: '📺 IPTV', component: 'iptv', url: '', icon: 'tv' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Sidebar && typeof Lampa.Sidebar.add === 'function') {
-            Lampa.Sidebar.add({ title: '📺 IPTV', component: 'iptv', url: '' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Menu && typeof Lampa.Menu.add === 'function') {
-            Lampa.Menu.add({ title: '📺 IPTV', component: 'iptv', url: '' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Menu && typeof Lampa.Menu.add === 'function') {
-            Lampa.Menu.add('📺 IPTV', openIPTV)
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Menu && typeof Lampa.Menu.item === 'function') {
-            Lampa.Menu.item({ title: '📺 IPTV', component: 'iptv', url: '' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Menu && typeof Lampa.Menu.push === 'function') {
-            Lampa.Menu.push({ title: '📺 IPTV', component: 'iptv', url: '' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Navigator && typeof Lampa.Navigator.add === 'function') {
-            Lampa.Navigator.add({ title: '📺 IPTV', component: 'iptv' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Bookmark && typeof Lampa.Bookmark.add === 'function') {
-            Lampa.Bookmark.add({ title: '📺 IPTV', url: '', component: 'iptv' })
-            return true
-          }
-        },
-        function () {
-          if (Lampa.Extension && typeof Lampa.Extension.add === 'function') {
-            Lampa.Extension.add({ name: 'iptv', title: '📺 IPTV', component: 'iptv' })
-            return true
-          }
+    function addMenuItem() {
+      try {
+        if (document.querySelector('.menu__item--iptv')) return
+        var list = document.querySelector('.menu .menu__list')
+        if (!list) {
+          if (typeof console !== 'undefined' && console.log) console.log('[IPTV] .menu .menu__list not found')
+          return false
         }
-      ]
+        var item = document.createElement('li')
+        item.className = 'menu__item selector menu__item--iptv'
+        item.innerHTML =
+          '<div class="menu__ico">' +
+          '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="2" y="4" width="20" height="14" rx="2"/>' +
+          '<path d="M8 21h8M12 18v3"/>' +
+          '</svg>' +
+          '</div>' +
+          '<div class="menu__text">IPTV</div>'
 
-      for (var i = 0; i < apis.length; i++) {
-        try {
-          if (apis[i]()) return true
-        } catch (e) {}
+        item.addEventListener('hover:enter', openIPTV)
+        item.addEventListener('click', openIPTV)
+
+        list.appendChild(item)
+        if (typeof console !== 'undefined' && console.log) console.log('[IPTV] Menu item added to .menu__list')
+        return true
+      } catch (e) {
+        if (typeof console !== 'undefined' && console.log) console.log('[IPTV] addMenuItem error: ' + e.message)
+        return false
       }
-      return false
     }
 
-    if (!tryRegisterMenu()) {
-      Lampa.Listener.follow('full', function (event) {
-        if (event.type === 'complite') {
-          tryRegisterMenu()
+    if (window.appready) {
+      addMenuItem()
+    }
+    Lampa.Listener.follow('app', function (e) {
+      if (e.type === 'ready') addMenuItem()
+    })
+    Lampa.Listener.follow('menu', function (e) {
+      if (e.type === 'end') addMenuItem()
+    })
+
+    if (typeof Lampa.Manifest !== 'undefined') {
+      try {
+        Lampa.Manifest.plugins = {
+          type: 'video',
+          name: 'IPTV',
+          component: 'iptv'
         }
-      })
+      } catch (e) {}
     }
 
     try { Lampa.Lang.add({ iptv_title: 'IPTV', iptv_settings: 'Settings', iptv_fav: 'Favorites' }) } catch (e) {}
